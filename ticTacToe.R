@@ -91,14 +91,11 @@ tttServer <- function(namespaceID, gridSize, questionBank, parent) {
     ## Error check
     if (gridSize > 5 || gridSize < 3) {
       stop("Current allowed sizes are 3, 4, or 5.")
-    } else if (nrow(questionBank) >= gridSize^2) {
+    } else if (trunc(sqrt(nrow(questionBank))) >= gridSize) {
       GRID_SIZE <- gridSize
-    } else if (nrow(questionBank) >= 16 && gridSize == 5) {
-      print("Not enough questions for a 5 x 5 game; reducing to 4 x 4")
-      GRID_SIZE <- 4
-    } else if (nrow(questionBank) >= 9 && gridSize > 3 ) {
-      print("Not enough questions for a 5 x 5 or a 4 x 4 game; reducing to 3 x 3")
-      GRID_SIZE <- 3
+    } else if (trunc(sqrt(nrow(questionBank))) >= 3) {
+      print("Not enough questions requested game; reducing to largest possible.")
+      GRID_SIZE <- trunc(sqrt(nrow(questionBank)))
     } else {
       stop("Question bank does not have enough questions for a 3 x 3 game. Fix.")
     }
