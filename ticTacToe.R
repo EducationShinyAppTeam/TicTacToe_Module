@@ -88,7 +88,18 @@ tttUI <- function(namespaceID) {
 #' @export
 tttServer <- function(namespaceID, gridSize, questionBank, parent) {
   moduleServer(id = namespaceID, function(input, output, session) {
-    ## Error check
+    ## Error Check 1: Valid Column Names in Question Bank ----
+    requiredColNames <- c("id", "question", "extraOutput", "hint", "format",
+                          "label", "A", "B", "C", "D", "answer")
+    missingCols <- setdiff(requiredColNames, names(questionBank))
+    extraCols <- setdiff(names(questionBank), requiredColNames)
+   if (length(missingCols) > 0) {
+      stop("Your question bank is missing the following columns: ", missingCols)
+   } else if (length(extraCols) > 0) {
+      print("You have extra columns in your question bank which will be ignored.")
+    }
+    
+    ## Error check 2: Sufficient Number of Questions ----
     if (gridSize > 5 || gridSize < 3) {
       stop("Current allowed sizes are 3, 4, or 5.")
     } else if (trunc(sqrt(nrow(questionBank))) >= gridSize) {
@@ -99,6 +110,46 @@ tttServer <- function(namespaceID, gridSize, questionBank, parent) {
     } else {
       stop("Question bank does not have enough questions for a 3 x 3 game. Fix.")
     }
+    
+    ## BEGIN App Specific xAPI Wrappers ----
+    .generateStatement <- function(session, verb = NA, object = NA, description = NA) {
+      if (is.na(object)) {
+        object <- paste0("#shiny-tab-", session$input$pages)
+      }
+      
+      stmt <- boastUtils::generateStatement(
+        session,
+        verb = verb,
+        object = object,
+        description = description
+      )
+      
+      response <- boastUtils::storeStatement(session, stmt)
+      
+      return(response)
+    }
+    
+    .generateAnsweredStatement <- function(session, verb = NA, object = NA, description = NA, interactionType = NA, response = NA, success = NA, completion = FALSE) {
+      stmt <- boastUtils::generateStatement(
+        session,
+        verb = verb,
+        object = object,
+        description = paste0("Question ", activeQuestion, ": ", description),
+        interactionType = interactionType,
+        success = success,
+        response = response,
+        completion = completion,
+        extensions = list(
+          ref = "https://educationshinyappteam.github.io/BOAST/xapi/result/extensions/scoreMatrix",
+          value = paste(as.data.frame(scoreMatrix), collapse = ", ")
+        )
+      )
+
+      response <- boastUtils::storeStatement(session, stmt)
+      
+      return(response)
+    }
+    ## END App Specific xAPI Wrappers ----
 
     ## Constants ----
     TILE_COUNT <- GRID_SIZE ^ 2
@@ -347,6 +398,7 @@ tttServer <- function(namespaceID, gridSize, questionBank, parent) {
     observeEvent(
       eventExpr = input$reset,
       handlerExpr = {
+        .generateStatement(session, object = "reset", verb = "interacted", description = "Game board has been reset.")
         gameReset()
         output$mark <- renderIcon()
         output$feedback <- renderUI(NULL)
@@ -375,9 +427,10 @@ tttServer <- function(namespaceID, gridSize, questionBank, parent) {
             handlerExpr = {
               activeBtn(id)
               boardBtn(id)
+              .generateStatement(session, object = activeBtn(), verb = "interacted", description = paste0("Tile ", activeBtn, " selected. Rendering question: ", activeQuestion, "."))
               output$mark <- renderUI(NULL)
               output$feedback <- renderUI(NULL)
-              output$testing <- renderUI({paste("Button Trigger:", id)})
+              # output$testing <- renderUI({paste("Button Trigger:", id)})
             })
           index <<- index + 1
         })
@@ -450,8 +503,20 @@ tttServer <- function(namespaceID, gridSize, questionBank, parent) {
         gameState <- gameCheck(scoreMatrix())
         completion <- ifelse(gameState == "continue", FALSE, TRUE)
         interactionType <- ifelse(gameSet[index,]$format == "numeric", "numeric", "choice")
-
+        
+        .generateAnsweredStatement(
+          session,
+          object = activeBtn(),
+          verb = "answered",
+          description = gameSet[index,]$question,
+          response = input$ans,
+          interactionType = interactionType,
+          success = success,
+          completion = completion
+        )
+        
         if (gameState == "win") {
+          .generateStatement(session, object = "game", verb = "completed", description = "Player has won the game.")
           confirmSweetAlert(
             session = session,
             inputId = "endGame",
@@ -466,6 +531,7 @@ tttServer <- function(namespaceID, gridSize, questionBank, parent) {
           output$hintDisplay <- renderUI(NULL)
         }
         else if (gameState == "lose") {
+          .generateStatement(session, object = "game", verb = "completed", description = "Player has lost the game.")
           confirmSweetAlert(
             session = session,
             inputId = "endGame",
@@ -479,6 +545,7 @@ tttServer <- function(namespaceID, gridSize, questionBank, parent) {
           output$hintDisplay <- renderUI(NULL)
         }
         else if (gameState == "draw") {
+          .generateStatement(session, object = "game", verb = "completed", description = "Game has ended in a draw.")
           confirmSweetAlert(
             session = session,
             inputId = "endGame",
@@ -532,6 +599,7 @@ tttServer <- function(namespaceID, gridSize, questionBank, parent) {
             gameProgress(TRUE)
           }
         }
+        .generateStatement(session, verb = "experienced", description = paste0("Navigated to ", parent$input$pages, " page."))
       },
       ignoreInit = TRUE
     )
@@ -540,6 +608,7 @@ tttServer <- function(namespaceID, gridSize, questionBank, parent) {
     observeEvent(
       eventExpr = input$endGame,
       handlerExpr = {
+        .generateStatement(session, object = "endGame", verb = "interacted", description = paste("Game has been reset."))
         gameReset()
       })
 
@@ -555,6 +624,7 @@ tttServer <- function(namespaceID, gridSize, questionBank, parent) {
           player("O")
           opponent("X")
         }
+        .generateStatement(session, object = "shinyalert", verb = "interacted", description = paste0("User has selected player: ", player()))
         output$player <- renderUI({
           return(paste0("You are playing as ", player(), "."))
         })
