@@ -59,9 +59,6 @@ tttUI <- function(namespaceID) {
         br(),
         br(),
         uiOutput(outputId = NS(namespace = namespaceID, id = "hintDisplay")),
-        #These two triggers help with MathJax re-rendering
-        uiOutput(outputId = NS(namespace = namespaceID, id = "trigger1")),
-        uiOutput(outputId = NS(namespace = namespaceID, id = "trigger2"))
       )
     )
   )
@@ -79,7 +76,7 @@ tttUI <- function(namespaceID) {
 #' @return UI and server components for playing Tic-Tac-Toe
 #' @examples
 #' tttServer(
-#' namespaceID = "retrigger1",
+#' namespaceID = "gamePage",
 #' gridSize = 3,
 #' questionBank = questionBank,
 #' parent = session
@@ -272,9 +269,7 @@ tttServer <- function(namespaceID, gridSize, questionBank, parent) {
       else {
         output$extraOutput <- NULL
       }
-      #Retrigger MathJax processing
-      output$trigger1 <- renderUI({withMathJax()})
-      output$trigger2 <- renderUI({withMathJax()})
+
       #Enable Submit Button
       updateButton(
         session = session,
