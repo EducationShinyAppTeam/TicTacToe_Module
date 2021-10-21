@@ -5,7 +5,7 @@
 #' @param namespaceID Required--the unique namespace for each instance
 #' @return UI components for an invisible retriggering of MathJax
 #' @examples
-#' tttMathUI(namespaceID = "gamePage")
+#' tttUI(namespaceID = "gamePage")
 #'
 #' @export
 tttUI <- function(namespaceID) {
